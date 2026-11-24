@@ -1,0 +1,12 @@
+{
+	"title"       : "Metrostroi Dedicated Save",
+	"type"        : "servercontent",
+	"tags"        : [ "realism", "roleplay" ],
+	"ignore"      :
+	[
+		"*.md",
+		".git*",
+		"*.psd",
+		"*.jpg"
+	]
+}
