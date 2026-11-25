@@ -270,10 +270,12 @@ local function Save(name)
 
     -- Players: online players now, plus remembered offline ones
     for _, ply in ipairs(player.GetHumans()) do RecordPlayer(ply) end
+    -- A list, not a map by SteamID64: JSONToTable turns number-like keys into numbers
+    -- and a 17-digit SteamID64 does not survive as a double (lookup never matched).
     for sid, rec in pairs(playerRecords) do
-        local r = { pos = rec.pos, ang = rec.ang }
+        local r = { sid = tostring(sid), pos = rec.pos, ang = rec.ang }
         if IsValid(rec.car) and index[rec.car] then r.car, r.seat = index[rec.car], rec.seat end
-        data.players[sid] = r
+        data.players[#data.players + 1] = r
     end
 
     -- Other addons can store their own state with the save:
@@ -291,17 +293,23 @@ end
 --------------------------------------------------------------------------------
 -- Load
 --------------------------------------------------------------------------------
+-- Put the player where the save had him. Returns true if there was a record for him.
 local function ApplyPlayer(ply)
-    if not IsValid(ply) or not ply:Alive() then return end
+    if not IsValid(ply) or not ply:Alive() then return false end
     local rec = playerRecords[ply:SteamID64()]
-    if not rec then return end
-    if IsValid(rec.car) and rec.seat and IsValid(rec.car[rec.seat]) and rec.car[rec.seat]:IsVehicle()
-        and not IsValid(rec.car[rec.seat]:GetDriver()) then
-        ply:EnterVehicle(rec.car[rec.seat])
+    if not rec then return false end
+    playerRecords[ply:SteamID64()] = nil   -- once; from now on he is recorded live again
+    if ply:InVehicle() then ply:ExitVehicle() end
+    local seat = IsValid(rec.car) and rec.seat and rec.car[rec.seat]
+    if IsValid(seat) and seat:IsVehicle() and not IsValid(seat:GetDriver()) then
+        ply:EnterVehicle(seat)
     elseif rec.pos then
         ply:SetPos(rec.pos)
+        ply:SetVelocity(-ply:GetVelocity())
         if rec.ang then ply:SetEyeAngles(rec.ang) end
     end
+    Log("Restored %s %s", ply:Nick(), IsValid(seat) and ("in " .. rec.seat) or "at saved position")
+    return true
 end
 
 local function Load(name)
@@ -429,12 +437,14 @@ local function Load(name)
         end
 
         playerRecords = {}
-        for sid, r in pairs(data.players or {}) do
-            playerRecords[sid] = { pos = r.pos, ang = r.ang, car = r.car and cars[r.car] or nil, seat = r.seat }
+        for k, r in pairs(data.players or {}) do
+            -- new saves: a list with r.sid; old ones: a map whose keys lost precision (unusable)
+            local sid = r.sid or (type(k) == "string" and k or nil)
+            if sid then playerRecords[sid] = { pos = r.pos, ang = r.ang, car = r.car and cars[r.car] or nil, seat = r.seat } end
         end
         loading, loadDone = false, true
         for _, ply in ipairs(player.GetHumans()) do
-            if not ply.MSRestored then ply.MSRestored = true; ApplyPlayer(ply) end
+            if not ply.MSRestored and ApplyPlayer(ply) then ply.MSRestored = true end
         end
         -- Trains are coupled and running again: let other addons restore their state
         --   hook.Add("MetrostroiSave_Load", id, function(ext, cars, savedAt) ... end)
@@ -498,9 +508,12 @@ hook.Add("PlayerSpawn", "MetrostroiSave", function(ply)
         tries = tries + 1
         if not IsValid(ply) then timer.Remove(id) return end
         if loading then return end -- wait until trains are loaded
-        ply.MSRestored = true
-        timer.Remove(id)
-        ApplyPlayer(ply)
+        -- Nothing for him yet: the autoload may not have started (it waits 10 s after
+        -- map start). Keep trying; the load itself also places everyone not yet placed.
+        if ApplyPlayer(ply) then
+            ply.MSRestored = true
+            timer.Remove(id)
+        end
     end)
 end)
 
