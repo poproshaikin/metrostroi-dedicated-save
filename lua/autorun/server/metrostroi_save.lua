@@ -8,6 +8,7 @@
 --   ms_load [name]     remove current trains and load state (default: autosave of current map)
 --   ms_saves           list saves
 -- Autosave every ms_autosave_interval seconds and on server shutdown (to "autosave_<map>").
+-- After a map cleanup the Metrostroi signalling is reloaded (cleanup removes it).
 -- On server start the autosave of the current map is loaded automatically.
 
 if not SERVER then return end
@@ -514,6 +515,22 @@ hook.Add("PlayerSpawn", "MetrostroiSave", function(ply)
             ply.MSRestored = true
             timer.Remove(id)
         end
+    end)
+end)
+
+-- Map cleanup (admin "Clean up map") removes Metrostroi's signals, signs and switches
+-- too: they are spawned from its data file, not by the map, and Metrostroi does not
+-- put them back. Do it: same as the metrostroi_load command.
+local signalsBeforeCleanup = 0
+hook.Add("PreCleanupMap", "MetrostroiSave_Signals", function()
+    signalsBeforeCleanup = #ents.FindByClass("gmod_track_signal")
+end)
+hook.Add("PostCleanupMap", "MetrostroiSave_Signals", function()
+    if signalsBeforeCleanup == 0 then return end
+    timer.Simple(1, function()
+        if #ents.FindByClass("gmod_track_signal") > 0 then return end
+        Log("Map cleanup removed the signalling (%d signals), reloading it", signalsBeforeCleanup)
+        game.ConsoleCommand("metrostroi_load\n")
     end)
 end)
 
