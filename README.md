@@ -53,3 +53,18 @@ garrysmod/addons/metrostroi-dedicated-save/lua/autorun/server/metrostroi_save.lu
 - Лучше сохраняться на прямом участке и заторможенным. В крутой кривой вагоны при загрузке могут дёрнуться; на уклоне поезд с отпущенными тормозами покатится.
 - Проверено на 81-717/714 (МВМ). Другие серии должны работать, но могут потребовать доработки.
 - С Turbostroi не проверялось: при включённом Turbostroi системы считаются в отдельном потоке и могут не восстановиться.
+
+## Для других аддонов
+
+Своё состояние можно хранить в сейве через хуки:
+
+```lua
+hook.Add("MetrostroiSave_Save", "myaddon", function(ext, cars, index)
+    ext.myaddon = { ... }        -- вагоны — номерами index[car], не энтити
+end)
+hook.Add("MetrostroiSave_Load", "myaddon", function(ext, cars, savedAt)
+    -- cars[n] — новая энтити вагона n; savedAt — os.time() сохранения
+end)
+```
+
+Так, например, [metrostroi-dispatcher](https://github.com/poproshaikin/metrostroi-dispatcher) сохраняет наряд и сдвигает график на время перерыва.

@@ -276,6 +276,13 @@ local function Save(name)
         data.players[sid] = r
     end
 
+    -- Other addons can store their own state with the save:
+    --   hook.Add("MetrostroiSave_Save", id, function(ext, cars, index) ext.myaddon = {...} end)
+    -- cars = saved cars in order, index[car] = its number in the save (use numbers, not entities)
+    data.ext = {}
+    local ok, err = pcall(hook.Run, "MetrostroiSave_Save", data.ext, trains, index)
+    if not ok then Log("An addon failed to save its state: %s", tostring(err)) end
+
     file.Write(DIR .. "/" .. name .. ".txt", util.TableToJSON(data))
     Log("Saved '%s': %d cars, %d couplings, %d players", name, #data.cars, #data.couples, table.Count(data.players))
     return true
@@ -429,6 +436,11 @@ local function Load(name)
         for _, ply in ipairs(player.GetHumans()) do
             if not ply.MSRestored then ply.MSRestored = true; ApplyPlayer(ply) end
         end
+        -- Trains are coupled and running again: let other addons restore their state
+        --   hook.Add("MetrostroiSave_Load", id, function(ext, cars, savedAt) ... end)
+        -- cars[n] = the new entity of car number n; savedAt = os.time() of the save
+        local ok, err = pcall(hook.Run, "MetrostroiSave_Load", data.ext or {}, cars, data.time)
+        if not ok then Log("An addon failed to restore its state: %s", tostring(err)) end
         Log("Loaded '%s': %d cars", name, table.Count(cars))
     end)
     return true
