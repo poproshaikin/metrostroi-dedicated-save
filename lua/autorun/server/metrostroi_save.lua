@@ -15,7 +15,7 @@ if not SERVER then return end
 local DIR = "metrostroi_saves"
 file.CreateDir(DIR)
 
-local cv_interval = CreateConVar("ms_autosave_interval", "300", FCVAR_ARCHIVE, "Metrostroi autosave interval, seconds (0 = off)")
+local cv_interval = CreateConVar("ms_autosave_interval", "900", FCVAR_ARCHIVE, "Metrostroi autosave interval, seconds (0 = off)")
 local cv_autoload = CreateConVar("ms_autoload", "1", FCVAR_ARCHIVE, "Load the autosave on server start")
 
 local function AutoName() return "autosave_" .. game.GetMap() end
